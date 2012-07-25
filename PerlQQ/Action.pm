@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use LWP::UserAgent;
 use PerlQQ::Auth;
+use JSON qw/from_json to_json/;
 
 sub new {
     my ($cls, $args) = @_;
@@ -111,6 +112,42 @@ sub poll {
     my $res = $self->ua->post("http://d.web2.qq.com/channel/poll2",
         [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub get_real_id {
+    my ($self, $uin) = @_;
+    my $t = time();
+    my $vfwebqq = $self->auth->vfwebqq;
+    my $res = $self->ua->get("http://s.web2.qq.com/api/get_friend_uin2?type=1&tuin=$uin&vfwebqq=$vfwebqq&t=$t",
+        referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub get_group_info_pre {
+    my ($self, $uin) = @_;
+    my $t = time();
+    my $vfwebqq = $self->auth->vfwebqq;
+    my $res = $self->ua->get("http://s.web2.qq.com/api/get_group_info?gcode=%5B$uin%5D&retainKey=memo%2Cgcode&vfwebqq=$vfwebqq&t=$t",
+        referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub get_group_info {
+    my ($self, $uin) = @_;
+    my $t = time();
+    my $vfwebqq = $self->auth->vfwebqq;
+    my $res = $self->ua->get("http://s.web2.qq.com/api/get_group_info_ext2?gcode=$uin&vfwebqq=$vfwebqq&t=$t",
+        referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
         cookie => $self->cookie,
     );
 

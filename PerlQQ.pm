@@ -6,12 +6,13 @@ use PerlQQ::Login;
 use PerlQQ::Action;
 use PerlQQ::Auth;
 use JSON qw/from_json to_json/;
-use DateTime;
+use Time::CTime;
 use Data::Dumper;
+
 
 sub new {
     my ($cls, $args) = @_;
-    bless $args, $cls;
+    bless {}, $cls;
 }
 
 sub client {
@@ -24,6 +25,15 @@ sub login {
     my $login = PerlQQ::Login->new({username => $username, password => $password});
     my $auth = $login->login;
     $self->{action} = PerlQQ::Action->new({auth => $auth});
+}
+
+sub message_loop {
+    my $self = shift;
+    if (fork()) {
+        $self->InterAct;
+    } else {
+        $self->KeepAlive;
+    }
 }
 
 sub InterAct {
@@ -45,10 +55,10 @@ sub KeepAlive {
         my $result = from_json($res->content);
         if ($result->{retcode} == 0) {
             for my $msg (@{$result->{result}}) {
-                parse($msg);
+                $self->parse($msg);
             }
         } else {
-            logger($result);
+            $self->logger($result);
         }
     }
 }
@@ -59,7 +69,7 @@ sub parse {
     eval {
         $msg = $msg->{value};
         my $from_uin = $msg->{from_uin};
-        my $time = DateTime->from_epoch(epoch => $msg->{time});
+        my $time = strftime("%m/%d %H:%M",$msg->{time});
         my $content = $msg->{content}->[1];
         my $font = $msg->{content}->[0];
         print $time."  ".$from_uin.": ".$content."\n";
@@ -71,6 +81,8 @@ sub parse {
 sub logger {
     my ($self, $content) = @_;
     open(MYFILE, ">>/var/tmp/webqq.txt");
-    print MYFILE "[".DateTime->now()."]  ".to_json($content)."\n";
+    print MYFILE "[".strftime("%m/%d %H:%M",time())."]  ".to_json($content)."\n";
     close(MYFILE);
 }
+
+1;
