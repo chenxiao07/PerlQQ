@@ -6,7 +6,6 @@ use PerlQQ::Login;
 use PerlQQ::Action;
 use PerlQQ::Auth;
 use JSON qw/from_json to_json/;
-use Time::CTime;
 use Data::Dumper;
 
 
@@ -69,7 +68,7 @@ sub parse {
     eval {
         $msg = $msg->{value};
         my $from_uin = $msg->{from_uin};
-        my $time = strftime("%m/%d %H:%M",$msg->{time});
+        my $time = localtime($msg->{time});
         my $content = $msg->{content}->[1];
         my $font = $msg->{content}->[0];
         print $time."  ".$from_uin.": ".$content."\n";
@@ -81,7 +80,7 @@ sub parse {
 sub logger {
     my ($self, $content) = @_;
     open(MYFILE, ">>/var/tmp/webqq.txt");
-    print MYFILE "[".strftime("%m/%d %H:%M",time())."]  ".to_json($content)."\n";
+    print MYFILE "[".localtime(time())."]  ".to_json($content)."\n";
     close(MYFILE);
 }
 
