@@ -5,7 +5,26 @@ use warnings;
 use PerlQQ::Login;
 use PerlQQ::Action;
 use PerlQQ::Auth;
+use JSON qw/from_json to_json/;
+use DateTime;
+use Data::Dumper;
 
+sub new {
+    my ($cls, $args) = @_;
+    bless $args, $cls;
+}
+
+sub client {
+    my $self = shift;
+    $self->{action};
+}
+
+sub login {
+    my ($self, $username, $password) = @_;
+    my $login = PerlQQ::Login->new({username => $username, password => $password});
+    my $auth = $login->login;
+    $self->{action} = PerlQQ::Action->new({auth => $auth});
+}
 
 sub InterAct {
     use Term::ReadLine;
@@ -21,7 +40,8 @@ sub InterAct {
 }
 
 sub KeepAlive {
-    while(my $res = poll()) {
+    my $self = shift;
+    while(my $res = $self->client->poll) {
         my $result = from_json($res->content);
         if ($result->{retcode} == 0) {
             for my $msg (@{$result->{result}}) {
@@ -34,8 +54,8 @@ sub KeepAlive {
 }
 
 sub parse {
-    my $msg = shift;
-    logger($msg);
+    my ($self, $msg) = @_;
+    $self->logger($msg);
     eval {
         $msg = $msg->{value};
         my $from_uin = $msg->{from_uin};
@@ -49,7 +69,8 @@ sub parse {
 }
 
 sub logger {
+    my ($self, $content) = @_;
     open(MYFILE, ">>/var/tmp/webqq.txt");
-    print MYFILE "[".DateTime->now()."]  ".to_json(shift)."\n";
+    print MYFILE "[".DateTime->now()."]  ".to_json($content)."\n";
     close(MYFILE);
 }
