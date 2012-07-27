@@ -103,18 +103,17 @@ sub parse {
     my ($self, $content) = @_;
     my $r = "";
     if ($content ~~ m/^1$/) {
-        eval {
-            if (my $tmp = $self->data->fetch) {
-                my $store = from_json($tmp);
-                for my $key (sort keys %$store) {
+        if (my $tmp = $self->data->fetch) {
+            my $store = from_json($tmp);
+            for my $key (sort keys %$store) {
+                eval {
                     $r = $r.to_json($store->{$key})."\n" unless $key eq '_index';
+                } or do {
+                    warn $@;
                 }
-            } else {
-                $r = "no message now";
             }
-        } or do {
-            warn $@;
-            $r = "error \n".$self->data->fetch;
+        } else {
+            $r = "no message now";
         }
     } elsif ($content ~~ m/^2$/) {
         $r = $self->friends;
