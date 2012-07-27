@@ -76,6 +76,8 @@ sub _check_username {
         $code2 = ($code2 =~ m/'(.+)'[^']/)[0];
         $code2 = eval('"'.$code2.'"');
         if ($is_need_verify) {
+            print "get verify code and save it to /var/tmp/image \n";
+            $self->_get_verify_code();
             $code1 = <>;
         }
         my $p = md5_hex(uc(md5_hex(md5($self->{password}).$code2).$code1));
@@ -85,6 +87,17 @@ sub _check_username {
         print $res->status_line;
         exit 0;
     }
+}
+
+sub _get_verify_code {
+    my ($self, $vc) = @_;
+    my $uin = $self->{username};
+    my $res = $self->ua->get("http://captcha.qq.com/getimage?aid=1003903&r=0.7712028087116778&uin=$uin&vc_type=$vc",
+        cookie => $self->auth->cookie,
+    );
+    open(MYFILE, '>:raw', "/var/tmp/image");
+    print MYFILE $res->content;
+    close(MYFILE);
 }
 
 sub _check_password {
