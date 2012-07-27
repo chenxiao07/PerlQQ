@@ -1,6 +1,5 @@
 package PerlQQ;
 
-use utf8;
 use strict;
 use warnings;
 use PerlQQ::Login;
@@ -9,7 +8,7 @@ use PerlQQ::Auth;
 use JSON qw/from_json to_json/;
 use Data::Dumper;
 use IPC::ShareLite;
-use Encode qw/encode decode/;
+use Text::ASCIITable;
 
 sub new {
     my ($cls) = @_;
@@ -19,6 +18,7 @@ sub new {
             -create => 'yes',
             -destroy   => 'no',
         );
+    $args->{state} = 0;
     bless $args, $cls;
 }
 
@@ -43,13 +43,24 @@ sub store {
     }
     $store->{_index} = $store->{_index} + 1;
     $store->{$store->{_index}} = $content;
-    $self->data->store(encode('UTF-8', to_json($store)));
+    $self->data->store(to_json($store));
+}
+
+sub messages {
+    my $self = shift;
+    $self->{messages} = Text::ASCIITable->new();
+    $self->{messages}->setCols('message type', 'content', 'from_user', 'from_group');
 }
 
 sub friends {
     my $self = shift;
     unless ($self->{friends}) {
-        $self->{friends} = $self->client->get_friends->content;
+        $self->{friends} = Text::ASCIITable->new();
+        $self->{friends}->setCols('user id', 'nickname');
+        my $tmp = from_json($self->client->get_friends->content);
+        for my $friend (@{$tmp->{result}->{info}}) {
+            $self->{friends}->addRow($friend->{uin}, $friend->{nick});
+        }
     }
     $self->{friends};
 }
@@ -57,7 +68,12 @@ sub friends {
 sub groups {
     my $self = shift;
     unless ($self->{groups}) {
-        $self->{groups} = $self->client->get_groups->content;
+        $self->{groups} = Text::ASCIITable->new();
+        $self->{groups}->setCols('group name', 'group id', 'group code');
+        my $tmp = from_json($self->client->get_groups->content);
+        for my $group (@{$tmp->{result}->{gnamelist}}) {
+            $self->{groups}->addRow($group->{name}, $group->{gid}, $group->{code});
+        }
     }
     $self->{groups};
 }
@@ -92,7 +108,6 @@ sub InterAct {
     my $term = Term::ReadLine->new('PerlQQ交互终端');
     my $prompt = "请输入命令编号(h打印帮助): ";
     my $OUT = $term->OUT || \*STDOUT;
-    binmode($OUT, ":utf8");
     while ( defined ($_ = $term->readline($prompt)) ) {
         my $res = $self->parse($_);
         print $OUT $res, "\n";
@@ -134,13 +149,31 @@ sub parse {
         $r = "1, 打印消息列表\n".
             "2, 打印好友列表\n".
             "3, 打印群组列表\n".
-            "4, 发送信息（好友，群）\n".
-            "5, 获取个人信息\n".
+            "4, 发送好友信息\n".
+            "5, 发送群信息\n".
             "6, 获取好友信息\n".
             "7, 获取群信息\n".
             "8, 设置昵称\n".
             "9, 清除本地缓存\n".
+            "x, API列表一览\n".
             "0, 退出\n";
+    } elsif ($content ~~ m/^x$/) {
+        $r = "get_single_info\n".
+            "get_friend_info\n".
+            "get_friend_info\n".
+            "get_nick\n".
+            "get_level\n".
+            "set_nick\n".
+            "poll\n".
+            "get_real_id\n".
+            "get_group_info_pre\n".
+            "get_group_info\n".
+            "send_message\n".
+            "send_group_message\n".
+            "get_friends\n".
+            "get_groups\n".
+            '输入$self->client->{api}直接进行操作'.
+            "\n";
     } else {
         eval ($content);
         warn $@ if $@;
@@ -174,7 +207,6 @@ sub logger {
     $level //= 0;
     $content = to_json($content) if ref $content;
     open(MYFILE, ">>/var/tmp/webqq.txt");
-    binmode(MYFILE, ":utf8");
     print MYFILE "[".localtime(time())."]  ".$content."\n";
     close(MYFILE);
 }
