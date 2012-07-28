@@ -9,6 +9,7 @@ use JSON qw/from_json to_json/;
 use Data::Dumper;
 use IPC::ShareLite;
 use Text::ASCIITable;
+use Encode qw/encode decode/;
 
 sub new {
     my ($cls) = @_;
@@ -43,13 +44,25 @@ sub store {
     }
     $store->{_index} = $store->{_index} + 1;
     $store->{$store->{_index}} = $content;
-    $self->data->store(to_json($store));
+    $self->data->store(encode('UTF-8', to_json($store)));
 }
 
 sub messages {
     my $self = shift;
     $self->{messages} = Text::ASCIITable->new();
-    $self->{messages}->setCols('message type', 'content', 'from_user', 'from_group');
+    $self->{messages}->setCols('message type', 'receive date', 'content', 'from_user', 'from_group');
+    if (my $tmp = $self->data->fetch) {
+        my $store = from_json($tmp);
+        for my $id (1..$store->{_index}) {
+            my $r = $store->{$id};
+            if ($r->{poll_type} eq 'message') {
+                $self->{messages}->addRow($r->{poll_type}, $r->{value}->{time}, $r->{value}->{content}->[-1], $r->{value}->{from_uin}, "");
+            } elsif ($r->{poll_type} eq 'group_message') {
+                $self->{messages}->addRow($r->{poll_type}, $r->{value}->{time}, $r->{value}->{content}->[-1], $r->{value}->{send_uin}, $r->{value}->{from_uin});
+            }
+        }
+    }
+    $self->{messages};
 }
 
 sub friends {
@@ -118,18 +131,7 @@ sub parse {
     my ($self, $content) = @_;
     my $r = "";
     if ($content ~~ m/^1$/) {
-        if (my $tmp = $self->data->fetch) {
-            my $store = from_json($tmp);
-            for my $key (sort keys %$store) {
-                eval {
-                    $r = $r.to_json($store->{$key})."\n" unless $key eq '_index';
-                } or do {
-                    warn $@;
-                }
-            }
-        } else {
-            $r = "no message now";
-        }
+        $r = $self->messages;
     } elsif ($content ~~ m/^2$/) {
         $r = $self->friends;
     } elsif ($content ~~ m/^3$/) {
@@ -206,6 +208,7 @@ sub logger {
     my ($self, $content, $level) = @_;
     $level //= 0;
     $content = to_json($content) if ref $content;
+    $content = encode('UTF-8', $content);
     open(MYFILE, ">>/var/tmp/webqq.txt");
     print MYFILE "[".localtime(time())."]  ".$content."\n";
     close(MYFILE);

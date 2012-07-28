@@ -77,10 +77,13 @@ sub _check_username {
         $code2 = eval('"'.$code2.'"');
         if ($is_need_verify) {
             print "get verify code and save it to /var/tmp/image \n";
-            $self->_get_verify_code();
+            $self->_get_verify_code($code1);
             $code1 = <>;
+            $code1 =~ s/\n//g;
+warn $code1;
         }
-        my $p = md5_hex(uc(md5_hex(md5($self->{password}).$code2).$code1));
+        my $p = md5_hex(uc(md5_hex(md5($self->{password}).$code2).uc($code1)));
+warn $p;
         $self->{code1} = $code1;
         $self->{p} = $p;
     } else {
