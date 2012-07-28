@@ -141,7 +141,7 @@ sub parse {
             $r = "格式：4 [好友uin] [要发送的信息]\n";
         } else {
             my ($uin, $msg) = ($content =~ m/^4\s+(\d+)\s+([^\s].*)$/);
-            $msg = encode('UTF-8', $msg);
+            $msg = $msg;
             $r = $self->client->send_message($uin, $msg)->content;
         }
     } elsif ($content ~~ m/^5\s+\d+\s+[^\s].*$/ || $content eq "5") {
@@ -149,7 +149,7 @@ sub parse {
             $r = "格式：5 [qq群uin] [要发送的信息]\n";
         } else {
             my ($uin, $msg) = ($content =~ m/^5\s+(\d+)\s+([^\s].*)$/);
-            $msg = encode('UTF-8', $msg);
+            $msg = $msg;
             $r = $self->client->send_group_message($uin, $msg)->content;
         }
     } elsif ($content ~~ m/^6\s+\d+$/ || $content eq "6") {
@@ -171,7 +171,7 @@ sub parse {
             $r = "格式：8 [签名内容]\n";
         } else {
             my ($msg) = ($content =~ m/^8\s+([^\s].*)$/);
-            $msg = encode('UTF-8', $msg);
+            $msg = $msg;
             $r = $self->client->set_nick($msg)->content;
         }
     } elsif ($content ~~ m/^9$/) {

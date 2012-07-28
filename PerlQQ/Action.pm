@@ -5,6 +5,7 @@ use warnings;
 use LWP::UserAgent;
 use PerlQQ::Auth;
 use JSON qw/from_json to_json/;
+use Encode qw/encode decode/;
 
 sub new {
     my ($cls, $args) = @_;
@@ -92,7 +93,7 @@ sub set_nick {
     };
 
     my $res = $self->ua->post("http://s.web2.qq.com/api/set_long_nick2",
-        [r => to_json($r)],
+        [r => decode('UTF-8', to_json($r))],
         referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
         cookie => $self->cookie,
     );
@@ -168,7 +169,7 @@ sub send_message {
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_buddy_msg2",
-        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
@@ -189,7 +190,7 @@ sub send_group_message {
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_qun_msg2",
-        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
