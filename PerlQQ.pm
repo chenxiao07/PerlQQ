@@ -36,7 +36,7 @@ sub data {
 sub store {
     my ($self, $content) = @_;
     my $store;
-    if (my $tmp = $self->data->fetch) {
+    if (my $tmp = decode('UTF-8', $self->data->fetch)) {
         $store = from_json($tmp);
     } else {
         $store = {};
@@ -136,11 +136,44 @@ sub parse {
         $r = $self->friends;
     } elsif ($content ~~ m/^3$/) {
         $r = $self->groups;
-    } elsif ($content ~~ m/^4$/) {
-    } elsif ($content ~~ m/^5$/) {
-    } elsif ($content ~~ m/^6$/) {
-    } elsif ($content ~~ m/^7$/) {
-    } elsif ($content ~~ m/^8$/) {
+    } elsif ($content ~~ m/^4\s+\d+\s+[^\s].*$/ || $content eq "4") {
+        if ($content eq "4") {
+            $r = "格式：4 [好友uin] [要发送的信息]\n";
+        } else {
+            my ($uin, $msg) = ($content =~ m/^4\s+(\d+)\s+([^\s].*)$/);
+            $msg = encode('UTF-8', $msg);
+            $r = $self->client->send_message($uin, $msg)->content;
+        }
+    } elsif ($content ~~ m/^5\s+\d+\s+[^\s].*$/ || $content eq "5") {
+        if ($content eq "5") {
+            $r = "格式：5 [qq群uin] [要发送的信息]\n";
+        } else {
+            my ($uin, $msg) = ($content =~ m/^5\s+(\d+)\s+([^\s].*)$/);
+            $msg = encode('UTF-8', $msg);
+            $r = $self->client->send_group_message($uin, $msg)->content;
+        }
+    } elsif ($content ~~ m/^6\s+\d+$/ || $content eq "6") {
+        if ($content eq "6") {
+            $r = "格式：6 [好友uin]\n";
+        } else {
+            my ($uin) = ($content =~ m/^5\s+(\d+)$/);
+            $r = $self->client->get_friend_info($uin)->content;
+        }
+    } elsif ($content ~~ m/^7\s+\d+$/ || $content eq "7") {
+        if ($content eq "7") {
+            $r = "格式：7 [qq群code]\n";
+        } else {
+            my ($code) = ($content =~ m/^7\s+(\d+)$/);
+            $r = $self->client->get_group_info($code)->content;
+        }
+    } elsif ($content ~~ m/^8\s+[^\s].*$/ || $content eq "8") {
+        if ($content eq "8") {
+            $r = "格式：8 [签名内容]\n";
+        } else {
+            my ($msg) = ($content =~ m/^8\s+([^\s].*)$/);
+            $msg = encode('UTF-8', $msg);
+            $r = $self->client->set_nick($msg)->content;
+        }
     } elsif ($content ~~ m/^9$/) {
         delete $self->{friends};
         delete $self->{groups};
@@ -155,13 +188,12 @@ sub parse {
             "5, 发送群信息\n".
             "6, 获取好友信息\n".
             "7, 获取群信息\n".
-            "8, 设置昵称\n".
+            "8, 设置签名\n".
             "9, 清除本地缓存\n".
             "x, API列表一览\n".
             "0, 退出\n";
     } elsif ($content ~~ m/^x$/) {
         $r = "get_single_info\n".
-            "get_friend_info\n".
             "get_friend_info\n".
             "get_nick\n".
             "get_level\n".
