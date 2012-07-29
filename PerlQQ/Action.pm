@@ -52,6 +52,7 @@ sub get_friend_info {
     my ($self, $uin) = @_;
     my $t = time();
     my $vfwebqq = $self->auth->vfwebqq;
+
     my $res = $self->ua->get("http://s.web2.qq.com/api/get_friend_info2?tuin=$uin&vfwebqq=$vfwebqq&t=$t",
         referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
         cookie => $self->cookie,

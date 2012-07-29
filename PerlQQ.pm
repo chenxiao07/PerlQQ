@@ -8,7 +8,7 @@ use PerlQQ::Auth;
 use JSON qw/from_json to_json/;
 use Data::Dumper;
 use IPC::ShareLite;
-use Text::ASCIITable;
+use Text::UnicodeTable::Simple;
 use Encode qw/encode decode/;
 
 sub new {
@@ -49,30 +49,79 @@ sub store {
 
 sub messages {
     my $self = shift;
-    $self->{messages} = Text::ASCIITable->new();
+    $self->{messages} = Text::UnicodeTable::Simple->new();
     $self->{messages}->setCols('message type', 'receive date', 'content', 'from_user', 'from_group');
     if (my $tmp = $self->data->fetch) {
         my $store = from_json($tmp);
         for my $id (1..$store->{_index}) {
             my $r = $store->{$id};
             if ($r->{poll_type} eq 'message') {
-                $self->{messages}->addRow($r->{poll_type}, $r->{value}->{time}, $r->{value}->{content}->[-1], $r->{value}->{from_uin}, "");
+                $self->{messages}->addRow($r->{poll_type}, $r->{value}->{time}, decode('UTF-8', $r->{value}->{content}->[-1]), $r->{value}->{from_uin}, "");
             } elsif ($r->{poll_type} eq 'group_message') {
-                $self->{messages}->addRow($r->{poll_type}, $r->{value}->{time}, $r->{value}->{content}->[-1], $r->{value}->{send_uin}, $r->{value}->{from_uin});
+                $self->{messages}->addRow($r->{poll_type}, $r->{value}->{time}, decode('UTF-8', $r->{value}->{content}->[-1]), $r->{value}->{send_uin}, $r->{value}->{from_uin});
             }
         }
     }
     $self->{messages};
 }
 
+sub friend {
+    my ($self, $uin) = @_;
+    unless ($self->{friend}) {
+        $self->{friend} = {};
+    }
+    unless ($self->{friend}->{$uin}) {
+        $self->{friend}->{$uin} = from_json($self->client->get_friend_info($uin)->content)->{result};
+    }
+    my $result = Text::UnicodeTable::Simple->new();
+    $result->setCols('type', 'content');
+    for my $key (keys  %{$self->{friend}->{$uin}}) {
+        my $a = $self->{friend}->{$uin}->{$key};
+        $result->addRow($key, ref $a ? decode('UTF-8', to_json($a)) : decode('UTF-8', $a));
+    }
+    $result;
+}
+
+sub group {
+    my ($self, $gcode) = @_;
+    unless ($self->{group}) {
+        $self->{group} = {};
+    }
+    unless ($self->{group}->{$gcode}) {
+        $self->{group}->{$gcode} = from_json($self->client->get_group_info($gcode)->content)->{result};
+    }
+    my $result = Text::UnicodeTable::Simple->new();
+    $result->setCols('uin', 'nick', 'group nick', 'country', 'province', 'city');
+    my $group_user = {};
+    for my $minfo (@{$self->{group}->{$gcode}->{minfo}}) {
+        $group_user->{$minfo->{uin}} = {};
+        $group_user->{$minfo->{uin}}->{nick} = $minfo->{nick};
+        $group_user->{$minfo->{uin}}->{country} = $minfo->{country};
+        $group_user->{$minfo->{uin}}->{province} = $minfo->{province};
+        $group_user->{$minfo->{uin}}->{city} = $minfo->{city};
+    }
+    for my $card (@{$self->{group}->{$gcode}->{cards}}) {
+        $group_user->{$card->{muin}}->{card} = $card->{card};
+    }
+    for my $key (keys %$group_user) {
+        $result->addRow($key, decode('UTF-8', $group_user->{$key}->{nick}), 
+                    decode('UTF-8', $group_user->{$key}->{card}),
+                    decode('UTF-8', $group_user->{$key}->{country}),
+                    decode('UTF-8', $group_user->{$key}->{province}),
+                    decode('UTF-8', $group_user->{$key}->{city}),
+                    );
+    }
+    $result;
+}
+
 sub friends {
     my $self = shift;
     unless ($self->{friends}) {
-        $self->{friends} = Text::ASCIITable->new();
+        $self->{friends} = Text::UnicodeTable::Simple->new();
         $self->{friends}->setCols('user id', 'nickname');
         my $tmp = from_json($self->client->get_friends->content);
         for my $friend (@{$tmp->{result}->{info}}) {
-            $self->{friends}->addRow($friend->{uin}, $friend->{nick});
+            $self->{friends}->addRow($friend->{uin}, decode('UTF-8', $friend->{nick}));
         }
     }
     $self->{friends};
@@ -81,11 +130,11 @@ sub friends {
 sub groups {
     my $self = shift;
     unless ($self->{groups}) {
-        $self->{groups} = Text::ASCIITable->new();
+        $self->{groups} = Text::UnicodeTable::Simple->new();
         $self->{groups}->setCols('group name', 'group id', 'group code');
         my $tmp = from_json($self->client->get_groups->content);
         for my $group (@{$tmp->{result}->{gnamelist}}) {
-            $self->{groups}->addRow($group->{name}, $group->{gid}, $group->{code});
+            $self->{groups}->addRow(decode('UTF-8', $group->{name}), $group->{gid}, $group->{code});
         }
     }
     $self->{groups};
@@ -156,15 +205,15 @@ sub parse {
         if ($content eq "6") {
             $r = "格式：6 [好友uin]\n";
         } else {
-            my ($uin) = ($content =~ m/^5\s+(\d+)$/);
-            $r = $self->client->get_friend_info($uin)->content;
+            my ($uin) = ($content =~ m/^6\s+(\d+)$/);
+            $r = $self->friend($uin);
         }
     } elsif ($content ~~ m/^7\s+\d+$/ || $content eq "7") {
         if ($content eq "7") {
             $r = "格式：7 [qq群code]\n";
         } else {
             my ($code) = ($content =~ m/^7\s+(\d+)$/);
-            $r = $self->client->get_group_info($code)->content;
+            $r = $self->group($code);
         }
     } elsif ($content ~~ m/^8\s+[^\s].*$/ || $content eq "8") {
         if ($content eq "8") {
@@ -176,7 +225,9 @@ sub parse {
         }
     } elsif ($content ~~ m/^9$/) {
         delete $self->{friends};
+        delete $self->{friend};
         delete $self->{groups};
+        delete $self->{group};
     } elsif ($content ~~ m/^0$/) {
         kill 9, $self->{pid};
         exit 1;
