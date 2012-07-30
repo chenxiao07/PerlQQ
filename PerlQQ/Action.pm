@@ -11,6 +11,7 @@ sub new {
     my ($cls, $args) = @_;
     $args->{auth} = $args->{auth};
     $args->{msg_id} = 23500002;
+    $args->{fileid} = 1;
     bless $args, $cls;
 }
 
@@ -57,6 +58,37 @@ sub get_friend_info {
         referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
         cookie => $self->cookie,
     );
+
+    return $res;
+}
+
+sub get_stranger_info2 {
+    my ($self, $uin) = @_;
+    my $t = time();
+    my $vfwebqq = $self->auth->vfwebqq;
+
+    my $res = $self->ua->get("http://s.web2.qq.com/api/get_stranger_info2?tuin=$uin&vfwebqq=$vfwebqq&t=$t&gid=0",
+        referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub get_gface_sig2 {
+    my ($self) = @_;
+    my $t = time();
+    my $clientid = $self->auth->clientid;
+    my $psessionid = $self->auth->psessionid;
+
+    my $res = $self->ua->get("http://d.web2.qq.com/channel/get_gface_sig2?clientid=$clientid&psessionid=$psessionid&t=$t",
+        referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
+        cookie => $self->cookie,
+    );
+
+    my $result = from_json($res->content);
+    $self->auth->{gface_key} = $result->{result}->{gface_key};
+    $self->auth->{gface_sig} = $result->{result}->{gface_sig};
 
     return $res;
 }
@@ -157,11 +189,13 @@ sub get_group_info {
 }
 
 sub send_message {
-    my ($self, $to_id, $content) = @_;
+    my ($self, $to_id, $content, $size) = @_;
+    $size //= 10;
+
     my $r = {
         to => $to_id,
         face => 0,
-        content => "[\"$content\",[\"font\",{\"name\":\"Tahoma\",\"size\":\"10\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
+        content => "[\"$content\",[\"font\",{\"name\":\"Tahoma\",\"size\":\"$size\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
         msg_id => $self->msg_id,
         clientid => $self->auth->clientid,
         psessionid => $self->auth->psessionid,
@@ -179,10 +213,12 @@ sub send_message {
 }
 
 sub send_group_message {
-    my ($self, $to_id, $content) = @_;
+    my ($self, $to_id, $content, $size) = @_;
+    $size //= 10;
+
     my $r = {
         group_uin => $to_id,
-        content => "[\"$content\",[\"font\",{\"name\":\"Tahoma\",\"size\":\"10\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
+        content => "[\"$content\",[\"font\",{\"name\":\"Tahoma\",\"size\":\"$size\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
         msg_id => $self->msg_id,
         clientid => $self->auth->clientid,
         psessionid => $self->auth->psessionid,
@@ -223,6 +259,84 @@ sub get_groups {
 
     my $res = $self->ua->post("http://s.web2.qq.com/api/get_group_name_list_mask2",
         [r => to_json($r)],
+        referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub cface_upload {
+    my ($self, $filepath) = @_;
+    my $t = time();
+
+    my $res = $self->ua->post("http://up.web2.qq.com/cgi-bin/cface_upload?time=$t",
+        Content_Type => "form-data",
+        Content => [from => "control",
+                    f => "EQQ.Model.ChatMsg.callbackSendPicGroup",
+                    vfwebqq => $self->auth->vfwebqq,
+                    custom_face => ["$filepath"],
+                    fileid => $self->{fileid},
+                    ],
+        referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    $self->{fileid} += 1;
+
+    return $res;
+}
+
+sub send_group_message_cface {
+    my ($self, $to_id, $content, $filepath) = @_;
+    my $result = $self->cface_upload($filepath)->content;
+    $result = ($result =~ m/callbackSendPicGroup\((.+)\)/)[0];
+    $result =~ s/'/"/g;
+    $result = from_json($result);
+    my $img_name = substr $result->{msg}, 0, 36;
+
+    unless ($self->auth->{gface_key}) {
+        $self->get_gface_sig2;
+    }
+
+    my $r = {
+        group_uin => $to_id,
+        key => $self->auth->{gface_key},
+        sig => $self->auth->{gface_sig},
+        content => "[[\"cface\",\"group\",\"$img_name\"],\"$content\",[\"font\",{\"name\":\"Tahoma\",\"size\":\"10\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
+        msg_id => $self->msg_id,
+        clientid => $self->auth->clientid,
+        psessionid => $self->auth->psessionid,
+    };
+
+    $self->{msg_id} += 1;
+
+    my $res = $self->ua->post("http://d.web2.qq.com/channel/send_qun_msg2",
+        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub send_group_message_cface_debug {
+    my ($self, $to_id, $content, $img_name) = @_;
+
+    my $r = {
+        group_uin => $to_id,
+        key => $self->auth->{gface_key},
+        sig => $self->auth->{gface_sig},
+        content => "[[\"cface\",\"group\",\"$img_name\"],\"$content\",[\"font\",{\"name\":\"Tahoma\",\"size\":\"10\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
+        msg_id => $self->msg_id,
+        clientid => $self->auth->clientid,
+        psessionid => $self->auth->psessionid,
+    };
+
+    $self->{msg_id} += 1;
+
+    my $res = $self->ua->post("http://d.web2.qq.com/channel/send_qun_msg2",
+        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );

@@ -78,7 +78,7 @@ sub _check_username {
         if ($is_need_verify) {
             print "get verify code and save it to /var/tmp/image \n";
             $self->_get_verify_code($code1);
-            $code1 = <>;
+            $code1 = uc(<>);
             $code1 =~ s/\n//g;
 warn $code1;
         }
