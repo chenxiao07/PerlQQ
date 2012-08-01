@@ -287,6 +287,75 @@ sub cface_upload {
     return $res;
 }
 
+sub send_message_cface {
+    my ($self, $to_id, $content, $path, $name, $filesize, $size) = @_;
+    $size //= 10;
+    warn "[\"offpic\",\"$path\",\"$name\",$filesize]";
+
+    my $r = {
+        to => $to_id,
+        face => 543,
+        content => "[[\"offpic\",\"$path\",\"$name\",$filesize], \"$content\", [\"font\",{\"name\":\"Tahoma\",\"size\":\"$size\",\"style\":[0,0,0],\"color\":\"000000\"}]]",
+        msg_id => $self->msg_id,
+        clientid => $self->auth->clientid,
+        psessionid => $self->auth->psessionid,
+    };
+
+    warn decode('UTF-8', to_json($r));
+
+    $self->{msg_id} += 1;
+
+    my $res = $self->ua->post("http://d.web2.qq.com/channel/send_buddy_msg2",
+        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
+sub upload_offline_pic {
+    my ($self, $filepath) = @_;
+    my $t = time();
+    warn substr $self->auth->{cookie}->{uin}, 1;
+    warn $self->auth->{cookie}->{skey};
+
+    my $res = $self->ua->post("http://weboffline.ftn.qq.com/ftn_access/upload_offline_pic?time=$t",
+        Content_Type => "form-data",
+        Content => [callback => "parent.EQQ.Model.ChatMsg.callbackSendPic",
+                    locallangid => "2052",
+                    clientversion => "1409",
+                    uin => substr($self->auth->{cookie}->{uin}, 1),
+                    skey => $self->auth->{cookie}->{skey},
+                    appid => "1002101",
+                    peeruin => "593023668",
+                    file => ["$filepath"],
+                    vfwebqq => $self->auth->vfwebqq,
+                    fileid => $self->{fileid},
+                    ],
+        referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    $self->{fileid} += 1;
+
+    return $res;
+}
+
+sub apply_offline_pic {
+    my ($self, $f_uin, $path) = @_;
+    my $t = time();
+    my $clientid = $self->auth->clientid;
+    my $psessionid = $self->auth->psessionid;
+
+    my $res = $self->ua->get("http://d.web2.qq.com/channel/apply_offline_pic_dl2?f_uin=$f_uin&file_path=$path&clientid=$clientid&psessionid=$psessionid&t=$t",
+        referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
+        cookie => $self->cookie,
+    );
+
+    return $res;
+}
+
 sub send_group_message_cface {
     my ($self, $to_id, $content, $filepath) = @_;
     my $result = $self->cface_upload($filepath)->content;
