@@ -10,6 +10,7 @@ use Data::Dumper;
 use IPC::ShareLite;
 use Text::UnicodeTable::Simple;
 use Encode qw/encode decode/;
+use utf8;
 
 sub new {
     my ($cls) = @_;
@@ -178,6 +179,7 @@ sub InterAct {
 
 sub parse {
     my ($self, $content) = @_;
+    $content =~ s/\s+$//;
     my $r = "";
     if ($content ~~ m/^1$/) {
         $r = $self->messages;
@@ -260,9 +262,12 @@ sub parse {
             '输入$self->client->{api}直接进行操作'.
             "\n";
     } else {
-        eval ($content);
-        warn $@ if $@;
-        $r = $_;
+        eval {
+            eval($content);
+            $r = $_;
+        } or do {
+            $r = "命令执行错误，输入h查看帮助";
+        }
     }
     $r;
 }
@@ -274,15 +279,24 @@ sub KeepAlive {
             my $result = from_json($res->content);
             if ($result->{retcode} == 0) {
                 for my $msg (@{$result->{result}}) {
+                    $self->logger("message begin---------------------------------------------------------------\n ");
                     $self->logger($msg);
-                    $self->store($msg);
+                    $self->logger("message end  ---------------------------------------------------------------\n ");
+                    if ($msg->{poll_type} eq "message") {
+                        $self->client->send_message(
+                            $msg->{value}->{from_uin},
+                            $self->parse($msg->{value}->{content}->[-1])
+                        );
+                    }
                 }
             } else {
                 $self->logger($result);
             }
         } or do {
+            $self->logger("error begin---------------------------------------------------------------\n ");
             $self->logger($@);
             $self->logger($res->content);
+            $self->logger("error end  ---------------------------------------------------------------\n ");
         }
     }
 }

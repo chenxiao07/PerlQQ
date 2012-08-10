@@ -126,7 +126,7 @@ sub set_nick {
     };
 
     my $res = $self->ua->post("http://s.web2.qq.com/api/set_long_nick2",
-        [r => decode('UTF-8', to_json($r))],
+        [r => to_json($r)],
         referer => "http://s.web2.qq.com/proxy.html?v=20110412001&callback=1&id=1",
         cookie => $self->cookie,
     );
@@ -191,6 +191,8 @@ sub get_group_info {
 sub send_message {
     my ($self, $to_id, $content, $size) = @_;
     $size //= 10;
+    return unless $content;
+    $content =~ s/\n/\\n/g;
 
     my $r = {
         to => $to_id,
@@ -204,7 +206,7 @@ sub send_message {
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_buddy_msg2",
-        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
@@ -215,6 +217,8 @@ sub send_message {
 sub send_group_message {
     my ($self, $to_id, $content, $size) = @_;
     $size //= 10;
+    return unless $content;
+    $content =~ s/\n/\\n/g;
 
     my $r = {
         group_uin => $to_id,
@@ -227,7 +231,7 @@ sub send_group_message {
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_qun_msg2",
-        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
@@ -301,12 +305,12 @@ sub send_message_cface {
         psessionid => $self->auth->psessionid,
     };
 
-    warn decode('UTF-8', to_json($r));
+    warn to_json($r);
 
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_buddy_msg2",
-        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
@@ -381,7 +385,7 @@ sub send_group_message_cface {
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_qun_msg2",
-        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
@@ -405,7 +409,7 @@ sub send_group_message_cface_debug {
     $self->{msg_id} += 1;
 
     my $res = $self->ua->post("http://d.web2.qq.com/channel/send_qun_msg2",
-        [r => decode('UTF-8', to_json($r)), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
+        [r => to_json($r), clientid => $self->auth->clientid, psessionid => $self->auth->psessionid],
         referer => "http://d.web2.qq.com/proxy.html?v=20110331002&callback=1&id=3",
         cookie => $self->cookie,
     );
